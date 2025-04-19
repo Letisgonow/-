@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>大富翁道具版</title>
+  <style>
+    body { font-family: sans-serif; background: #e0f7fa; text-align: center; }
+    #board {
+      display: grid;
+      grid-template-columns: repeat(5, 80px);
+      grid-template-rows: repeat(5, 80px);
+      gap: 2px;
+      justify-content: center;
+      margin: 20px auto;
+    }
+    .tile {
+      border: 1px solid #555;
+      background: #fff8e1;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      flex-direction: column;
+      text-align: center;
+    }
+    .player {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      position: absolute;
+      bottom: 5px;
+    }
+    .player0 { background: red; right: 35px; }
+    .player1 { background: blue; right: 15px; }
+    .player2 { background: green; left: 15px; }
+    .player3 { background: purple; left: 35px; }
+    .owner { font-size: 10px; color: green; }
+    .level { font-size: 10px; color: orange; }
+    button { padding: 10px 20px; font-size: 16px; margin: 5px; }
+    #info { margin-top: 10px; font-weight: bold; }
+    #timer { font-size: 14px; margin: 5px; color: #444; }
+  </style>
+</head>
+<body>
+  <h1>🎲 大富翁（带道具 + 回合计时）</h1>
+  <div id="board"></div>
+  <button onclick="rollDice()">掷骰子 🎲</button>
+  <button onclick="useItem('shield')">🛡️ 护盾</button>
+  <button onclick="useItem('bomb')">💣 炸弹</button>
+  <button onclick="useItem('swap')">🔄 交换位置</button>
+  <div id="timer"></div>
+  <div id="info"></div>
+
+  <script>
+    const board = document.getElementById('board');
+    const info = document.getElementById('info');
+    const timerDisplay = document.getElementById('timer');
+    const size = 5;
+    const totalTiles = size * 4 - 4;
+    const capitalNames = ["北京","东京","巴黎","伦敦","华盛顿","莫斯科","柏林","罗马","渥太华","马德里","汉城","堪培拉","巴西利亚","开罗","新德里","伊斯兰堡","利雅得","安卡拉","阿布贾","曼谷"];
+
+    const players = [
+      { name: '玩家A', pos: 0, money: 1000, shield: false },
+      { name: '玩家B', pos: 0, money: 1000, shield: false },
+      { name: '玩家C', pos: 0, money: 1000, shield: false },
+      { name: '玩家D', pos: 0, money: 1000, shield: false }
+    ];
+    let currentPlayer = 0;
+    let turnTimer;
+    const tiles = [];
+    const tileOwners = Array(totalTiles).fill(null);
+    const tileLevels = Array(totalTiles).fill(0);
+    const tilePrices = Array(totalTiles).fill(200);
+
+    function createBoard() {
+      for (let i = 0; i < size * size; i++) {
+        const tile = document.createElement('div');
+        tile.className = 'tile';
+        tile.innerText = i;
+        board.appendChild(tile);
+        tiles.push(tile);
+      }
+      updateBoard();
+    }
+
+    function getTileIndex(n) {
+      if (n < size) return n;
+      if (n < size + size - 1) return (n - size + 1) * size - 1;
+      if (n < size * 3 - 2) return size * size - (n - (2 * size - 2)) - 1;
+      return size * (size - (n - (3 * size - 3)) - 1);
+    }
+
+    function updateBoard() {
+      tiles.forEach((tile, i) => {
+        tile.innerHTML = `${capitalNames[i % capitalNames.length]}`;
+        if (tileOwners[i]) {
+          const owner = document.createElement('div');
+          owner.className = 'owner';
+          owner.innerText = `🏠 ${tileOwners[i]}`;
+          tile.appendChild(owner);
+        }
+        if (tileLevels[i] > 0) {
+          const level = document.createElement('div');
+          level.className = 'level';
+          level.innerText = `Lv.${tileLevels[i]}`;
+          tile.appendChild(level);
+        }
+      });
+      players.forEach((p, i) => {
+        const pos = getTileIndex(p.pos % totalTiles);
+        const token = document.createElement('div');
+        token.className = `player player${i}`;
+        tiles[pos].appendChild(token);
+      });
+      const p = players[currentPlayer];
+      info.innerHTML = `🎯 当前：${p.name}｜位置：${p.pos % totalTiles}｜💰 $${p.money}${p.shield ? ' 🛡️' : ''}`;
+    }
+
+    function rollDice() {
+      clearTimeout(turnTimer);
+      const p = players[currentPlayer];
+      const roll = Math.floor(Math.random() * 6) + 1;
+      p.pos += roll;
+      const tile = p.pos % totalTiles;
+      alert(`${p.name} 掷出 ${roll} 点，移动到 ${capitalNames[tile % capitalNames.length]}`);
+
+      if (tileOwners[tile] === null) {
+        if (confirm(`该地无人持有，是否花 $${tilePrices[tile]} 购买？`)) {
+          if (p.money >= tilePrices[tile]) {
+            p.money -= tilePrices[tile];
+            tileOwners[tile] = p.name;
+            tileLevels[tile] = 1;
+            alert(`${p.name} 成功购入 Lv.1 房产！`);
+          }
+        }
+      } else if (tileOwners[tile] === p.name) {
+        if (confirm(`你是该地主人，是否花 $200 升级？`)) {
+          if (p.money >= 200) {
+            tileLevels[tile]++;
+            p.money -= 200;
+          }
+        }
+      } else {
+        const toll = 100 * (tileLevels[tile] || 1);
+        if (p.shield) {
+          alert(`🛡️ 护盾生效！免除 $${toll} 过路费`);
+          p.shield = false;
+        } else {
+          p.money -= toll;
+          alert(`${p.name} 进入 ${tileOwners[tile]} 的 Lv.${tileLevels[tile]} 地，支付 $${toll}`);
+        }
+      }
+
+      if (tile % 5 === 0) {
+        const fate = Math.random();
+        if (fate < 0.5) {
+          const bonus = Math.floor(Math.random() * 200);
+          p.money += bonus;
+          alert(`🃏 幸运事件：获得 $${bonus}`);
+        } else {
+          const bomb = 150;
+          p.money -= bomb;
+          alert(`💣 踩到炸弹，失去 $${bomb}`);
+        }
+      }
+
+      if (p.money <= 0) {
+        alert(`${p.name} 破产，游戏结束！`);
+        location.reload();
+        return;
+      }
+
+      currentPlayer = (currentPlayer + 1) % players.length;
+      updateBoard();
+      startTurnTimer();
+    }
+
+    function useItem(type) {
+      const p = players[currentPlayer];
+      if (type === 'shield') {
+        p.shield = true;
+        alert(`${p.name} 使用了护盾！下次免除过路费`);
+      } else if (type === 'bomb') {
+        const targets = players.filter((_, i) => i !== currentPlayer);
+        targets.forEach(t => t.money -= 100);
+        alert(`💣 ${p.name} 使用炸弹，其他人各扣 $100`);
+      } else if (type === 'swap') {
+        const target = (currentPlayer + 1) % players.length;
+        [players[currentPlayer].pos, players[target].pos] = [players[target].pos, players[currentPlayer].pos];
+        alert(`🔄 ${p.name} 与 ${players[target].name} 交换了位置！`);
+      }
+      updateBoard();
+    }
+
+    function startTurnTimer() {
+      let seconds = 15;
+      timerDisplay.innerText = `⏳ 倒计时：${seconds} 秒`;
+      turnTimer = setInterval(() => {
+        seconds--;
+        timerDisplay.innerText = `⏳ 倒计时：${seconds} 秒`;
+        if (seconds <= 0) {
+          clearInterval(turnTimer);
+          alert('⏰ 超时！自动跳过回合');
+          currentPlayer = (currentPlayer + 1) % players.length;
+          updateBoard();
+          startTurnTimer();
+        }
+      }, 1000);
+    }
+
+    createBoard();
+    startTurnTimer();
+  </script>
+</body>
+</html>
